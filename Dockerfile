@@ -24,4 +24,4 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 
 COPY . .
 
-ENTRYPOINT ["python", "manage.py", "runserver", "0:8080"]
+ENTRYPOINT ["gunicorn", "rinha.wsgi", "-b", "0:8080"]

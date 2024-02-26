@@ -4,3 +4,4 @@
 !pyproject.toml
 !manage.py
 !rinha/**
+!gunicorn.conf.py

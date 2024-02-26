@@ -15,9 +15,9 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.5"
+          cpus: "0.4"
           memory: "200MB"
-    command: postgres -c max_connections=100
+    command: postgres -c max_connections=500
     healthcheck:
       test:
         [
@@ -46,6 +46,11 @@ services:
         condition: service_healthy
     environment:
       - DB_HOST=db
+    deploy:
+      resources:
+        limits:
+          cpus: "0.47"
+          memory: "165MB"
   api2: 
     <<: *api1
     hostname: api2
@@ -60,3 +65,8 @@ services:
     depends_on:
       - api1
       - api2
+    deploy:
+      resources:
+        limits:
+          cpus: "0.16"
+          memory: "20MB"
