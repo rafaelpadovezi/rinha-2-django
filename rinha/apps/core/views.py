@@ -6,6 +6,9 @@ from rinha.apps.core.models import Cliente
 from rinha.apps.core.models import Transacao
 from django.db import transaction
 from rinha.apps.core.serializers import TransacaoSerializer
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class TransacaoView(APIView):
@@ -33,8 +36,10 @@ def get_extrato(request: Request, id: int) -> Response:
 
     return Response(
         {
-            "limite": cliente.limite,
-            "saldo": cliente.saldo,
+            "saldo": {
+                "limite": cliente.limite,
+                "total": cliente.saldo,
+            },
             "ultimas_transacoes": ultimas_transacoes,
         }
     )
@@ -43,7 +48,8 @@ def get_extrato(request: Request, id: int) -> Response:
 @api_view(["POST"])
 def create_transacao(request: Request, id: int) -> Response:
     serializer = TransacaoSerializer(data=request.data)
-    serializer.is_valid(raise_exception=True)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=422)
 
     transacao = serializer.validated_data
     valor_transacao = (

@@ -3,7 +3,7 @@ from rinha.apps.core.models import Transacao
 
 
 class TransacaoSerializer(serializers.ModelSerializer):
-    descricao = serializers.CharField(required=True, max_length=10)
+    descricao = serializers.CharField(required=True, max_length=10, min_length=1)
     tipo = serializers.ChoiceField(choices=Transacao.TIPO_CHOICES)
     valor = serializers.IntegerField(required=True, min_value=1)
 

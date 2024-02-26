@@ -1,0 +1,6 @@
+**
+**/pycache/**
+!poetry.lock
+!pyproject.toml
+!manage.py
+!rinha/**
