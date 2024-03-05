@@ -9,8 +9,18 @@ Versão Python, Django e PostgreSQL da [rinha de backend 2ª edição - 2024/Q1]
 - PostgreSQL
 - nginx
 
-## Running the project
+## Executando o projeto
 
-```sh
-python manage.py runserver 5047
-```
+```bash
+docker compose up api1 api2 nginx
+``` 
+
+## Resultados dos testes locais com gatling
+
+![Métricas do gatling](docs/gatling.png)
+
+
+## Outras versões da rinha
+
+- [aspnet com EF Core e PostgreSQL](https://github.com/rafaelpadovezi/rinha-2)
+- [aspnet com MongoDB](https://github.com/rafaelpadovezi/rinha-2-mongo)
