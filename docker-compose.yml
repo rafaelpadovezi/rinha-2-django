@@ -8,16 +8,17 @@ services:
     volumes:
       - ./conf/docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d
       - ./conf/postgresql.conf:/etc/postgresql/postgresql.conf
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
     environment:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: rinha
     depends_on:
       - pgadmin
-    # deploy:
-    #   resources:
-    #     limits:
-    #       cpus: "0.4"
-    #       memory: "200MB"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.40"
+          memory: "250MB"
     healthcheck:
       test:
         [
@@ -42,16 +43,20 @@ services:
     build: .
     hostname: api1
     depends_on:
-      pgbouncer:
-        condition: service_started
+      db:
+        condition: service_healthy
     environment:
       - DB_HOST=db
       - USE_STATIC_FILE_HANDLER_FROM_WSGI=TRUE
       - DATABASE_URL=host=db dbname=rinha user=postgres password=postgres
-    # deploy:
-    #   resources:
-    #     limits:
-    #       cpus: "0.40"
+      - GUNICORN_WORKERS=2
+      - DB_POOL_MAX_SIZE=45
+      - DEBUG=False
+    deploy:
+      resources:
+        limits:
+          cpus: "0.47"
+          memory: "140MB"
   api2: 
     <<: *api1
     hostname: api2
@@ -71,28 +76,3 @@ services:
         limits:
           cpus: "0.16"
           memory: "20MB"
-
-  pgbouncer:
-    image: edoburu/pgbouncer
-    environment:
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
-      - DB_HOST=db
-      - DB_NAME=rinha
-      - POOL_MODE=session
-      - ADMIN_USERS=postgres,dbuser
-      - AUTH_TYPE=scram-sha-256
-      - DEFAULT_POOL_SIZE=50
-    depends_on:
-      db:
-        condition: service_healthy
-    # volumes:
-    #   - ./conf/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
-    #   - ./conf/userlist.txt:/etc/pgbouncer/userlist.txt:ro
-    ports:
-      - "6432:5432"
-    deploy:
-      resources:
-        limits:
-          cpus: '0.2'
-          memory: '100MB'

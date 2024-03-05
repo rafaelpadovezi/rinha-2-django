@@ -1,25 +1,21 @@
 from rest_framework.request import Request
 from rest_framework.response import Response
-from rest_framework.views import APIView
 from rest_framework.decorators import api_view
-from rinha.apps.core.models import Cliente
-from rinha.apps.core.models import Transacao
-from django.db import transaction
-from rinha.apps.core.serializers import TransacaoSerializer
 import logging
-import psycopg
 from psycopg.rows import dict_row
+from psycopg_pool import ConnectionPool
 from rinha.settings import DATABASE_URL
+from rinha.settings import DB_POOL_MAX_SIZE
 
 logger = logging.getLogger(__name__)
 
+pool = ConnectionPool(DATABASE_URL, open=True, min_size=5, max_size=DB_POOL_MAX_SIZE)
 
 @api_view(["GET"])
 def get_extrato(request: Request, id: int) -> Response:
     ultimas_transacoes = []
     cliente = None
-    with psycopg.connect(DATABASE_URL) as conn:
-
+    with pool.connection() as conn:
         with conn.cursor(row_factory=dict_row) as cur:
             cur.execute("""
                 SELECT c.limite, c.saldo, t.*
@@ -74,7 +70,7 @@ def create_transacao(request: Request, id: int) -> Response:
         transacao["valor"] if transacao["tipo"] == "c" else transacao["valor"] * -1
     )
 
-    with psycopg.connect(DATABASE_URL) as conn:
+    with pool.connection() as conn:
 
         with conn.cursor(row_factory=dict_row) as cur:
             cur.execute("SELECT c.limite, c.saldo FROM core_cliente c WHERE c.id = %s FOR UPDATE", [id])
@@ -91,4 +87,5 @@ def create_transacao(request: Request, id: int) -> Response:
                 """INSERT INTO core_transacao (cliente_id, valor, tipo, descricao, realizada_em) 
                 VALUES (%s, %s, %s, %s, 'now');
                 """, (id, transacao["valor"], transacao["tipo"], transacao["descricao"]))
+
     return Response({"saldo": novo_saldo, "limite": cliente["limite"]})
