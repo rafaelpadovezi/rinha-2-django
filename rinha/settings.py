@@ -145,3 +145,18 @@ STATIC_URL = "static/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 USE_STATIC_FILE_HANDLER_FROM_WSGI = os.getenv("USE_STATIC_FILE_HANDLER_FROM_WSGI", False)
+
+REST_FRAMEWORK = {
+    "DEFAULT_RENDERER_CLASSES": (
+        "drf_orjson_renderer.renderers.ORJSONRenderer",
+        "rest_framework.renderers.BrowsableAPIRenderer",
+    ),
+}
+
+REST_FRAMEWORK = {
+    "DEFAULT_PARSER_CLASSES": (
+        "drf_orjson_renderer.parsers.ORJSONParser",
+    ),
+}
+
+DATABASE_URL = os.getenv("DATABASE_URL", "host=localhost dbname=rinha user=postgres password=postgres")

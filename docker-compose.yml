@@ -13,11 +13,11 @@ services:
       POSTGRES_DB: rinha
     depends_on:
       - pgadmin
-#    deploy:
-#      resources:
-#        limits:
-#          cpus: "0.4"
-#          memory: "200MB"
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: "0.4"
+    #       memory: "200MB"
     healthcheck:
       test:
         [
@@ -47,11 +47,11 @@ services:
     environment:
       - DB_HOST=db
       - USE_STATIC_FILE_HANDLER_FROM_WSGI=TRUE
-#    deploy:
-#      resources:
-#        limits:
-#          cpus: "0.47"
-#          memory: "165MB"
+      - DATABASE_URL=host=db dbname=rinha user=postgres password=postgres
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: "0.40"
   api2: 
     <<: *api1
     hostname: api2

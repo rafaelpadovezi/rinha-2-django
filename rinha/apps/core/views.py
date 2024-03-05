@@ -7,17 +7,45 @@ from rinha.apps.core.models import Transacao
 from django.db import transaction
 from rinha.apps.core.serializers import TransacaoSerializer
 import logging
+import psycopg
+from psycopg.rows import dict_row
+from rinha.settings import DATABASE_URL
 
 logger = logging.getLogger(__name__)
 
 
 @api_view(["GET"])
 def get_extrato(request: Request, id: int) -> Response:
-    clientes = Cliente.objects.filter(pk=id).values("limite", "saldo")
-    if len(clientes) == 0:
+    ultimas_transacoes = []
+    cliente = None
+    with psycopg.connect(DATABASE_URL) as conn:
+
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute("""
+                SELECT c.limite, c.saldo, t.*
+                FROM core_cliente c
+                LEFT JOIN (
+                    SELECT *
+                    FROM core_transacao
+                    ORDER BY id DESC
+                    LIMIT 10
+                ) t ON c.id = t.cliente_id
+                WHERE c.id = %s;""", [id])
+            for record in cur:
+                if cliente is None:
+                    cliente = {
+                        "limite": record["limite"],
+                        "saldo": record["saldo"],
+                    }
+                if record["valor"] is not None:
+                    ultimas_transacoes.append({
+                        "valor": record["valor"],
+                        "tipo": record["tipo"],
+                        "descricao": record["descricao"],
+                        "realizado_em": record["realizada_em"],
+                    })
+    if cliente is None:
         return Response({"message": "Cliente não encontrado"}, status=404)
-    cliente = clientes[0]
-    transacoes = Transacao.objects.order_by("-id").filter(cliente__id=id)[:10].values()
 
     return Response(
         {
@@ -25,33 +53,42 @@ def get_extrato(request: Request, id: int) -> Response:
                 "limite": cliente["limite"],
                 "total": cliente["saldo"],
             },
-            "ultimas_transacoes": transacoes,
+            "ultimas_transacoes": ultimas_transacoes,
         }
     )
 
 
 @api_view(["POST"])
 def create_transacao(request: Request, id: int) -> Response:
-    serializer = TransacaoSerializer(data=request.data)
-    if not serializer.is_valid():
-        return Response(serializer.errors, status=422)
-
-    transacao = serializer.validated_data
+    transacao = request.data
+    tipo = transacao.get("tipo")
+    valor = transacao.get("valor")
+    descricao = transacao.get("descricao")
+    if tipo not in ["c", "d"]:
+        return Response({"message": "Tipo inválido"}, status=422)
+    if not isinstance(valor, int) or valor < 1:
+        return Response({"message": "Valor inválido"}, status=422)
+    if descricao is None or not (1 <= len(descricao) <= 10):
+        return Response({"message": "Descrição inválida"}, status=422)
     valor_transacao = (
         transacao["valor"] if transacao["tipo"] == "c" else transacao["valor"] * -1
     )
 
-    with transaction.atomic():
-        cliente = Cliente.objects.select_for_update().get(pk=id)
-        if cliente.saldo + valor_transacao < cliente.limite * -1:
-            return Response({"message": "Saldo insuficiente"}, status=422)
+    with psycopg.connect(DATABASE_URL) as conn:
 
-        cliente.saldo += valor_transacao
-        cliente.save()
-        Transacao.objects.create(
-            cliente=cliente,
-            valor=transacao["valor"],
-            tipo=transacao["tipo"],
-            descricao=transacao["descricao"],
-        )
-    return Response({"saldo": cliente.saldo, "limite": cliente.limite})
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute("SELECT c.limite, c.saldo FROM core_cliente c WHERE c.id = %s FOR UPDATE", [id])
+            result = cur.fetchone()
+            cliente = {
+                "limite": result["limite"],
+                "saldo": result["saldo"],
+            }
+            novo_saldo = cliente["saldo"] + valor_transacao
+            if novo_saldo < cliente["limite"] * -1:
+                return Response({"message": "Saldo insuficiente"}, status=422)
+            cur.execute("UPDATE core_cliente SET saldo = %s WHERE id = %s", (novo_saldo, id))
+            cur.execute(
+                """INSERT INTO core_transacao (cliente_id, valor, tipo, descricao, realizada_em) 
+                VALUES (%s, %s, %s, %s, 'now');
+                """, (id, transacao["valor"], transacao["tipo"], transacao["descricao"]))
+    return Response({"saldo": novo_saldo, "limite": cliente["limite"]})
