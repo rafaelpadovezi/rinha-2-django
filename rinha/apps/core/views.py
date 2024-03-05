@@ -11,36 +11,21 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class TransacaoView(APIView):
-    def post(self, request):
-        pass
-
-
 @api_view(["GET"])
 def get_extrato(request: Request, id: int) -> Response:
-    try:
-        cliente = Cliente.objects.get(pk=id)
-    except Cliente.DoesNotExist:
+    clientes = Cliente.objects.filter(pk=id).values("limite", "saldo")
+    if len(clientes) == 0:
         return Response({"message": "Cliente não encontrado"}, status=404)
-    transacoes = Transacao.objects.order_by("-id").filter(cliente__id=id)[:10]
-    ultimas_transacoes = []
-    for transacao in transacoes:
-        ultimas_transacoes.append(
-            {
-                "valor": transacao.valor,
-                "tipo": transacao.tipo,
-                "descricao": transacao.descricao,
-                "realizada_em": transacao.realizada_em,
-            }
-        )
+    cliente = clientes[0]
+    transacoes = Transacao.objects.order_by("-id").filter(cliente__id=id)[:10].values()
 
     return Response(
         {
             "saldo": {
-                "limite": cliente.limite,
-                "total": cliente.saldo,
+                "limite": cliente["limite"],
+                "total": cliente["saldo"],
             },
-            "ultimas_transacoes": ultimas_transacoes,
+            "ultimas_transacoes": transacoes,
         }
     )
 
