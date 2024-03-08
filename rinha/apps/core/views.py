@@ -1,47 +1,29 @@
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
-import logging
-from psycopg.rows import dict_row
-from psycopg_pool import ConnectionPool
-from rinha.settings import DATABASE_URL
-from rinha.settings import DB_POOL_MAX_SIZE
-
-logger = logging.getLogger(__name__)
-
-pool = ConnectionPool(DATABASE_URL, open=True, min_size=5, max_size=DB_POOL_MAX_SIZE)
+from rinha.apps.core.models import Cliente
+from rinha.apps.core.models import Transacao
+from django.db import transaction
+from django.db.models import F
 
 @api_view(["GET"])
 def get_extrato(request: Request, id: int) -> Response:
-    ultimas_transacoes = []
-    cliente = None
-    with pool.connection() as conn:
-        with conn.cursor(row_factory=dict_row) as cur:
-            cur.execute("""
-                SELECT c.limite, c.saldo, t.*
-                FROM core_cliente c
-                LEFT JOIN (
-                    SELECT *
-                    FROM core_transacao
-                    ORDER BY id DESC
-                    LIMIT 10
-                ) t ON c.id = t.cliente_id
-                WHERE c.id = %s;""", [id])
-            for record in cur:
-                if cliente is None:
-                    cliente = {
-                        "limite": record["limite"],
-                        "saldo": record["saldo"],
-                    }
-                if record["valor"] is not None:
-                    ultimas_transacoes.append({
-                        "valor": record["valor"],
-                        "tipo": record["tipo"],
-                        "descricao": record["descricao"],
-                        "realizado_em": record["realizada_em"],
-                    })
-    if cliente is None:
+    try:
+        with transaction.atomic():
+            cliente = Cliente.objects.values("limite", "saldo").get(pk=id)
+            transacoes = Transacao.objects.order_by("-id").filter(cliente__id=id).values()[:10]
+    except Cliente.DoesNotExist:
         return Response({"message": "Cliente não encontrado"}, status=404)
+    ultimas_transacoes = []
+    for transacao in transacoes:
+        ultimas_transacoes.append(
+            {
+                "valor": transacao["valor"],
+                "tipo": transacao["tipo"],
+                "descricao": transacao["descricao"],
+                "realizada_em": transacao["realizada_em"],
+            }
+        )
 
     return Response(
         {
@@ -70,22 +52,38 @@ def create_transacao(request: Request, id: int) -> Response:
         transacao["valor"] if transacao["tipo"] == "c" else transacao["valor"] * -1
     )
 
-    with pool.connection() as conn:
+    # with transaction.atomic(savepoint=False):
+    # affected = Cliente.objects.filter(pk=id) \
+    #     .filter(saldo__gt=F("limite") * -1 - valor_transacao) \
+    #     .update(saldo=F("saldo") + valor_transacao)
 
-        with conn.cursor(row_factory=dict_row) as cur:
-            cur.execute("SELECT c.limite, c.saldo FROM core_cliente c WHERE c.id = %s FOR UPDATE", [id])
-            result = cur.fetchone()
-            cliente = {
-                "limite": result["limite"],
-                "saldo": result["saldo"],
-            }
-            novo_saldo = cliente["saldo"] + valor_transacao
-            if novo_saldo < cliente["limite"] * -1:
-                return Response({"message": "Saldo insuficiente"}, status=422)
-            cur.execute("UPDATE core_cliente SET saldo = %s WHERE id = %s", (novo_saldo, id))
-            cur.execute(
-                """INSERT INTO core_transacao (cliente_id, valor, tipo, descricao, realizada_em) 
-                VALUES (%s, %s, %s, %s, 'now');
-                """, (id, transacao["valor"], transacao["tipo"], transacao["descricao"]))
+    # cliente = Cliente.objects.filter(pk=id).values("limite", "saldo").first()
+    # if cliente is None:
+    #     return Response({"message": "Cliente não encontrado"}, status=404)
+    # if affected == 0:
+    #     return Response({"message": "Saldo insuficiente"}, status=422)
 
-    return Response({"saldo": novo_saldo, "limite": cliente["limite"]})
+    # Transacao.objects.create(
+    #     cliente_id=id,
+    #     valor=transacao["valor"],
+    #     tipo=transacao["tipo"],
+    #     descricao=transacao["descricao"],
+    # )
+    # return Response({"saldo": cliente["saldo"], "limite": cliente["limite"]})
+
+    with transaction.atomic(savepoint=False):
+        cliente = Cliente.objects.select_for_update().filter(pk=id).first()
+        if cliente is None:
+            return Response({"message": "Cliente não encontrado"}, status=404)
+        if cliente.saldo + valor_transacao < cliente.limite * -1:
+            return Response({"message": "Saldo insuficiente"}, status=422)
+
+        cliente.saldo += valor_transacao
+        cliente.save(update_fields=["saldo"])
+        Transacao.objects.create(
+            cliente_id=id,
+            valor=transacao["valor"],
+            tipo=transacao["tipo"],
+            descricao=transacao["descricao"],
+        )
+    return Response({"saldo": cliente.saldo, "limite": cliente.limite})

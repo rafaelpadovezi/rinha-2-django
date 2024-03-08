@@ -90,6 +90,9 @@ DATABASES = {
     }
 }
 
+DATABASES["default"]["CONN_MAX_AGE"] = 0
+DATABASES["default"]["DISABLE_SERVER_SIDE_CURSORS"] = os.environ.get("DISABLE_SERVER_SIDE_CURSORS", False)
+
 
 # Password validation
 # https://docs.djangoproject.com/en/5.0/ref/settings/#auth-password-validators

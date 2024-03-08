@@ -14,11 +14,11 @@ services:
       POSTGRES_DB: rinha
     depends_on:
       - pgadmin
-    deploy:
-      resources:
-        limits:
-          cpus: "0.40"
-          memory: "250MB"
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: "0.5"
+    #       memory: "180MB"
     healthcheck:
       test:
         [
@@ -43,20 +43,21 @@ services:
     build: .
     hostname: api1
     depends_on:
-      db:
-        condition: service_healthy
+      pgbouncer:
+        condition: service_started
     environment:
       - DB_HOST=db
       - USE_STATIC_FILE_HANDLER_FROM_WSGI=TRUE
       - DATABASE_URL=host=db dbname=rinha user=postgres password=postgres
-      - GUNICORN_WORKERS=2
+      - GUNICORN_WORKERS=3
       - DB_POOL_MAX_SIZE=45
-      - DEBUG=False
-    deploy:
-      resources:
-        limits:
-          cpus: "0.47"
-          memory: "140MB"
+      - DEBUG=FALSE
+      - DISABLE_SERVER_SIDE_CURSORS=FALSE
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: "0.42"
+    #       memory: "175MB"
   api2: 
     <<: *api1
     hostname: api2
@@ -76,3 +77,38 @@ services:
         limits:
           cpus: "0.16"
           memory: "20MB"
+
+  pgbouncer:
+    image: edoburu/pgbouncer
+    environment:
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_HOST=db
+      - DB_NAME=rinha
+      - POOL_MODE=transaction
+      - ADMIN_USERS=postgres,dbuser
+      - AUTH_TYPE=scram-sha-256
+      - DEFAULT_POOL_SIZE=100
+      - MAX_CLIENT_CONN=1000
+      # - MAX_DB_CONNECTIONS=250
+      # - MAX_USER_CONNECTIONS=250
+      - SERVER_RESET_QUERY=DISCARD ALL
+    depends_on:
+      db:
+        condition: service_healthy
+#    volumes:
+#      - ./conf/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
+#       - ./conf/userlist.txt:/etc/pgbouncer/userlist.txt:ro
+    ports:
+      - "6432:5432"
+#    deploy:
+#      resources:
+#        limits:
+#          cpus: '0.2'
+#          memory: '100MB'
+  pgbouncer-exporter:
+    image: prometheuscommunity/pgbouncer-exporter
+    depends_on:
+      - pgbouncer
+    ports:
+      - "9127:9127"
