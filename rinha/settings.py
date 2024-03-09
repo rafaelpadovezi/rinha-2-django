@@ -87,11 +87,16 @@ DATABASES = {
         "PASSWORD": os.environ.get("DB_PASSWORD", "postgres"),
         "HOST": os.environ.get("DB_HOST", "localhost"),
         "PORT": os.environ.get("DB_PORT", 5432),
+        "OPTIONS": {
+            "server_side_binding": True,
+        },
     }
 }
 
 DATABASES["default"]["CONN_MAX_AGE"] = 0
-DATABASES["default"]["DISABLE_SERVER_SIDE_CURSORS"] = os.environ.get("DISABLE_SERVER_SIDE_CURSORS", False)
+DATABASES["default"]["DISABLE_SERVER_SIDE_CURSORS"] = os.environ.get(
+    "DISABLE_SERVER_SIDE_CURSORS", False
+)
 
 
 # Password validation
@@ -135,6 +140,10 @@ STATIC_URL = "static/"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-USE_STATIC_FILE_HANDLER_FROM_WSGI = os.getenv("USE_STATIC_FILE_HANDLER_FROM_WSGI", False)
-DATABASE_URL = os.getenv("DATABASE_URL", "host=localhost dbname=rinha user=postgres password=postgres")
+USE_STATIC_FILE_HANDLER_FROM_WSGI = os.getenv(
+    "USE_STATIC_FILE_HANDLER_FROM_WSGI", False
+)
+DATABASE_URL = os.getenv(
+    "DATABASE_URL", "host=localhost dbname=rinha user=postgres password=postgres"
+)
 DB_POOL_MAX_SIZE = int(os.getenv("DB_POOL_MAX_SIZE", "15"))

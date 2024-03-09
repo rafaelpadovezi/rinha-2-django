@@ -17,7 +17,7 @@ services:
     # deploy:
     #   resources:
     #     limits:
-    #       cpus: "0.5"
+    #       cpus: "0.64"
     #       memory: "180MB"
     healthcheck:
       test:
@@ -49,14 +49,14 @@ services:
       - DB_HOST=db
       - USE_STATIC_FILE_HANDLER_FROM_WSGI=TRUE
       - DATABASE_URL=host=db dbname=rinha user=postgres password=postgres
-      - GUNICORN_WORKERS=3
+      - GUNICORN_WORKERS=2
       - DB_POOL_MAX_SIZE=45
       - DEBUG=FALSE
       - DISABLE_SERVER_SIDE_CURSORS=FALSE
     # deploy:
     #   resources:
     #     limits:
-    #       cpus: "0.42"
+    #       cpus: "0.3"
     #       memory: "175MB"
   api2: 
     <<: *api1

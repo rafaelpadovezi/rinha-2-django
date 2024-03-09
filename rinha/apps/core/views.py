@@ -6,12 +6,18 @@ from rinha.apps.core.models import Transacao
 from django.db import transaction
 from django.db.models import F
 
+
 @api_view(["GET"])
 def get_extrato(request: Request, id: int) -> Response:
     try:
         with transaction.atomic():
             cliente = Cliente.objects.values("limite", "saldo").get(pk=id)
-            transacoes = Transacao.objects.order_by("-id").filter(cliente__id=id).values()[:10]
+            transacoes = (
+                Transacao.objects.order_by("-id")
+                .filter(cliente__id=id)
+                .values()[:10]
+                .iterator()
+            )
     except Cliente.DoesNotExist:
         return Response({"message": "Cliente não encontrado"}, status=404)
     ultimas_transacoes = []
@@ -80,10 +86,6 @@ def create_transacao(request: Request, id: int) -> Response:
 
         cliente.saldo += valor_transacao
         cliente.save(update_fields=["saldo"])
-        Transacao.objects.create(
-            cliente_id=id,
-            valor=transacao["valor"],
-            tipo=transacao["tipo"],
-            descricao=transacao["descricao"],
-        )
+        new_transacao = Transacao(None, valor, id, tipo, descricao)
+        new_transacao.save()
     return Response({"saldo": cliente.saldo, "limite": cliente.limite})
